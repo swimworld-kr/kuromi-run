@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>쿠로미의 초코비 런</title>
+    <link href="https://fonts.googleapis.com/css2?family=Single+Day&weight@400&display=swap" rel="stylesheet">
+    <style>
+        body { 
+    text-align: center; 
+    background-color: #f3e5f5; /* 아주 연한 보라색 배경 (쿠로미 느낌!) */
+    margin: 0; 
+    padding: 0; 
+    font-family: 'Single Day', cursive; /* 싱글데이 폰트 적용 */}
+        canvas { border: 2px solid #000; background-color: #fff; margin-top: 50px; }
+    </style>
+</head>
+<body>
+    <h1>쿠로미의 하트 런</h1>
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    <p>스페이스바를 눌러 점프하세요!</p>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        // 게임 설정
+        const GRAVITY = 0.8;
+        const JUMP_STRENGTH = -16;
+        let gameSpeed = 5;
+        let score = 0;
+        let gameOver = false;
+        let frame = 0;
+
+        // 이미지 로드
+        const dinoImg = new Image();
+        dinoImg.src = "kuromi.png"; // 같은 폴더에 있어야 함
+        
+        const cactusImg = new Image();
+        cactusImg.src = "heart.png"; // 같은 폴더에 있어야 함
+
+        // 공룡 객체
+       // 공룡 객체 (2단 점프 버전)
+        const dino = {
+            x: 50,
+            y: 300,
+            width: 50,
+            height: 50,
+            dy: 0,
+            isJumping: false,
+            jumpCount: 0,  // 점프 횟수 세기
+            maxJumps: 3,   // 최대 점프 횟수 (3으로 바꾸면 3단 점프!)
+
+            draw() {
+                if (dinoImg.complete && dinoImg.naturalHeight !== 0) {
+                    ctx.drawImage(dinoImg, this.x, this.y, this.width, this.height);
+                } else {
+                    ctx.fillStyle = "green";
+                    ctx.fillRect(this.x, this.y, this.width, this.height);
+                }
+            },
+            update() {
+                this.dy += GRAVITY;
+                this.y += this.dy;
+
+                // 바닥 충돌
+                if (this.y + this.height >= 350) {
+                    this.y = 350 - this.height;
+                    this.isJumping = false;
+                    this.dy = 0;
+                    this.jumpCount = 0; // 바닥에 닿으면 점프 횟수 초기화
+                }
+            },
+            jump() {
+                // 최대 점프 횟수보다 적게 점프했다면 실행
+                if (this.jumpCount < this.maxJumps) {
+                    this.dy = JUMP_STRENGTH;
+                    this.isJumping = true;
+                    this.jumpCount++; // 점프 횟수 1 증가
+                }
+            }
+        };
+
+        // 장애물 관리
+        const obstacles = [];
+
+        class Cactus {
+            constructor() {
+                this.width = 30;
+                this.height = Math.floor(Math.random() * (70 - 40 + 1)) + 40;
+                this.x = canvas.width + Math.floor(Math.random() * 100);
+                this.y = 350 - this.height;
+                this.markedForDeletion = false;
+            }
+            draw() {
+                if (cactusImg.complete && cactusImg.naturalHeight !== 0) {
+                    ctx.drawImage(cactusImg, this.x, this.y, this.width, this.height);
+                } else {
+                    ctx.fillStyle = "red";
+                    ctx.fillRect(this.x, this.y, this.width, this.height);
+                }
+            }
+            update() {
+                this.x -= gameSpeed;
+                if (this.x + this.width < 0) this.markedForDeletion = true;
+            }
+        }
+
+        function handleObstacles() {
+            // 2% 확률로 장애물 생성 (약 60프레임 기준 1초에 1~2개)
+            if (Math.random() < 0.01) {
+                obstacles.push(new Cactus());
+            }
+            
+            obstacles.forEach((obs, index) => {
+                obs.update();
+                obs.draw();
+                
+                // 충돌 체크 (단순 사각형 충돌)
+                if (
+                    dino.x < obs.x + obs.width &&
+                    dino.x + dino.width > obs.x &&
+                    dino.y < obs.y + obs.height &&
+                    dino.y + dino.height > obs.y
+                ) {
+                    gameOver = true;
+                }
+            });
+
+            // 화면 밖으로 나가는 장애물 제거
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                if (obstacles[i].markedForDeletion) {
+                    obstacles.splice(i, 1);
+                    score++;
+                    // 점수 500점마다 속도 증가
+                    if (score % 500 === 0) gameSpeed += 1;
+                }
+            }
+        }
+
+        function drawScore() {
+            ctx.fillStyle = "black";
+            ctx.font = "20px Arial";
+            ctx.fillText("Score: " + score, 10, 30);
+        }
+
+        function drawLine() {
+            ctx.beginPath();
+            ctx.moveTo(0, 350);
+            ctx.lineTo(canvas.width, 350);
+            ctx.strokeStyle = "#4a148c"; // 진한 보라색 선
+            ctx.stroke();
+        }
+
+        function resetGame() {
+            gameOver = false;
+            score = 0;
+            gameSpeed = 7;
+            obstacles.length = 0;
+            dino.y = 300;
+            dino.dy = 0;
+            animate();
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawLine();
+
+            dino.update();
+            dino.draw();
+            handleObstacles();
+            drawScore();
+
+            if (!gameOver) {
+                requestAnimationFrame(animate);
+            } else {
+                ctx.fillStyle = "black";
+                ctx.font = "40px Arial";
+                ctx.fillText("GAME OVER", canvas.width/2 - 100, canvas.height/2);
+                ctx.font = "20px Arial";
+                ctx.fillText("Press Space to Retry", canvas.width/2 - 90, canvas.height/2 + 40);
+            }
+        }
+
+        // 키보드 이벤트
+        window.addEventListener('keydown', function(e) {
+            if (e.code === 'Space') {
+                if (!gameOver) {
+                    dino.jump();
+                } else {
+                    resetGame();
+                }
+            }
+        }                                       );
+
+        // 게임 시작
+        animate();
+    </script>
+</body>
+</html>
